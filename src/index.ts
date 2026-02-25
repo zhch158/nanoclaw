@@ -41,8 +41,6 @@ import { findChannel, formatMessages, formatOutbound } from './router.js';
 import { startSchedulerLoop } from './task-scheduler.js';
 import { Channel, NewMessage, RegisteredGroup } from './types.js';
 import { logger } from './logger.js';
-import { readEnvFile } from './env.js';
-import { startTokenRefresher } from './copilot-token.js';
 
 // Re-export for backwards compatibility during refactor
 export { escapeXml, formatMessages } from './router.js';
@@ -454,12 +452,6 @@ async function main(): Promise<void> {
   initDatabase();
   logger.info('Database initialized');
   loadState();
-
-  // Start GitHub Copilot token refresher if configured
-  const envCopilot = readEnvFile(['GITHUB_COPILOT']);
-  if (envCopilot.GITHUB_COPILOT === 'true') {
-    startTokenRefresher();
-  }
 
   // Graceful shutdown handlers
   const shutdown = async (signal: string) => {
