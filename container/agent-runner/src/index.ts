@@ -595,12 +595,16 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  // Build SDK env: merge secrets into process.env for the SDK only.
-  // Secrets never touch process.env itself, so Bash subprocesses can't see them.
-  const sdkEnv: Record<string, string | undefined> = { ...process.env };
+  // Inject secrets into process.env so the Anthropic SDK can read them
+  // (ANTHROPIC_BASE_URL, ANTHROPIC_AUTH_TOKEN, ANTHROPIC_MODEL, etc. are read
+  // directly from process.env by the SDK — passing them only via sdkEnv has no effect).
+  // The sanitizeBash hook strips auth tokens from Bash subprocesses.
   for (const [key, value] of Object.entries(containerInput.secrets || {})) {
-    sdkEnv[key] = value;
+    process.env[key] = value;
   }
+
+  // Build SDK env: also pass secrets to Bash subprocess environments.
+  const sdkEnv: Record<string, string | undefined> = { ...process.env };
 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const mcpServerPath = path.join(__dirname, 'ipc-mcp-stdio.js');
