@@ -16,6 +16,7 @@ import {
   TIMEZONE,
 } from './config.js';
 import { readEnvFile } from './env.js';
+import { getToken as getCopilotToken } from './copilot-token.js';
 import { resolveGroupFolderPath, resolveGroupIpcPath } from './group-folder.js';
 import { logger } from './logger.js';
 import {
@@ -202,15 +203,63 @@ function buildVolumeMounts(
 /**
  * Read allowed secrets from .env for passing to the container via stdin.
  * Secrets are never written to disk or mounted as files.
+ *
+ * When GITHUB_COPILOT=true is set in .env, the short-lived Copilot API token
+ * is fetched dynamically and injected as ANTHROPIC_AUTH_TOKEN + ANTHROPIC_BASE_URL,
+ * overriding any static values in .env.
  */
-function readSecrets(): Record<string, string> {
-  return readEnvFile([
+async function readSecrets(): Promise<Record<string, string>> {
+  const envSecrets = readEnvFile([
     'CLAUDE_CODE_OAUTH_TOKEN',
     'ANTHROPIC_API_KEY',
     'ANTHROPIC_AUTH_TOKEN',
     'ANTHROPIC_BASE_URL',
     'ANTHROPIC_MODEL',
+    'GITHUB_COPILOT',
   ]);
+
+  if (envSecrets.GITHUB_COPILOT === 'true') {
+    try {
+      const { token, endpoint } = await getCopilotToken();
+      // Inject live Copilot credentials, overriding any static .env values.
+      // NOTE: ANTHROPIC_BASE_URL must NOT include a trailing /v1 — the
+      // Anthropic SDK appends /v1 itself, so including it would produce /v1/v1/.
+      envSecrets.ANTHROPIC_AUTH_TOKEN = token;
+      envSecrets.ANTHROPIC_BASE_URL = endpoint;
+      // Inject required Copilot API headers that the Anthropic SDK wouldn't
+      // otherwise include. ANTHROPIC_CUSTOM_HEADERS is read by claude-code
+      // and merged into every API request as HTTP headers.
+      // Headers must be separated by real newlines (\n character, ASCII 0x0A),
+      // NOT the two-character escape sequence "\\n" — the SDK splits on \n.
+      // Including Authorization here bypasses the OAuth-mode conditional in
+      // claude-code's lL9() which skips setting the header in OAuth sessions.
+      // Override anthropic-beta to remove interleaved-thinking-2025-05-14.
+      // Copilot API returns thinking blocks without a `signature` field; when
+      // claude-code resumes a session it re-sends those blocks and the API
+      // rejects them with 400 "thinking.signature: Field required".
+      // Removing the thinking beta prevents thinking blocks from being generated.
+      envSecrets.ANTHROPIC_CUSTOM_HEADERS = [
+        `Authorization: Bearer ${token}`,
+        'Editor-Version: vscode/1.95.0',
+        'Copilot-Integration-Id: vscode-chat',
+      ].join('\n');
+      // Disable extended thinking: Copilot API returns thinking blocks without
+      // a `signature` field. On session resume claude-code re-sends those blocks
+      // and the API rejects them with 400 "thinking.signature: Field required".
+      // CLAUDE_CODE_DISABLE_THINKING=1 prevents thinking blocks from being
+      // generated so they are never stored in the session history.
+      envSecrets.CLAUDE_CODE_DISABLE_THINKING = '1';
+      // Strip the flag itself — the container doesn't need it
+      delete envSecrets.GITHUB_COPILOT;
+    } catch (err) {
+      logger.error({ err }, 'Failed to get GitHub Copilot token for container');
+      throw err;
+    }
+  } else {
+    delete envSecrets.GITHUB_COPILOT;
+  }
+
+  return envSecrets;
 }
 
 function buildContainerArgs(
@@ -284,6 +333,9 @@ export async function runContainerAgent(
     'Spawning container agent',
   );
 
+  // Fetch secrets before entering the Promise callback (readSecrets is async)
+  const secrets = await readSecrets();
+
   const logsDir = path.join(groupDir, 'logs');
   fs.mkdirSync(logsDir, { recursive: true });
 
@@ -300,7 +352,7 @@ export async function runContainerAgent(
     let stderrTruncated = false;
 
     // Pass secrets via stdin (never written to disk or mounted as files)
-    input.secrets = readSecrets();
+    input.secrets = secrets;
     container.stdin.write(JSON.stringify(input));
     container.stdin.end();
     // Remove secrets from input so they don't appear in logs
