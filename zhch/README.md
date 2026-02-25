@@ -66,6 +66,7 @@ launchctl load ~/Library/LaunchAgents/com.nanoclaw.plist
 ### 3.2 重启服务
 
 ```bash
+# 这两条命令会立即重启 LiteLLM 和 NanoClaw 服务。`kickstart -k` 强制杀死并重新启动指定的 launchd 服务，`gui/$(id -u)` 指定当前用户的 GUI 会话。
 launchctl kickstart -k gui/$(id -u)/com.litellm
 launchctl kickstart -k gui/$(id -u)/com.nanoclaw
 ```
