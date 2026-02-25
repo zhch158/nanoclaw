@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.nanoclaw</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/zhch158/.nvm/versions/node/v22.14.0/bin/node</string>
+        <string>/Users/zhch158/workspace/repository.git/nanoclaw/dist/index.js</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/Users/zhch158/workspace/repository.git/nanoclaw</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/local/bin:/usr/bin:/bin:/Users/zhch158/.local/bin</string>
+        <key>HOME</key>
+        <string>/Users/zhch158</string>
+        <key>HTTP_PROXY</key>
+        <string>http://127.0.0.1:7890</string>
+        <key>HTTPS_PROXY</key>
+        <string>http://127.0.0.1:7890</string>
+        <key>http_proxy</key>
+        <string>http://127.0.0.1:7890</string>
+        <key>https_proxy</key>
+        <string>http://127.0.0.1:7890</string>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>/Users/zhch158/workspace/repository.git/nanoclaw/logs/nanoclaw.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/zhch158/workspace/repository.git/nanoclaw/logs/nanoclaw.error.log</string>
+</dict>
+</plist>
