@@ -1,5 +1,6 @@
 import { exec } from 'child_process';
 import fs from 'fs';
+import https from 'https';
 import path from 'path';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 
@@ -7,7 +8,6 @@ import makeWASocket, {
   Browsers,
   DisconnectReason,
   WASocket,
-  fetchLatestWaWebVersion,
   makeCacheableSignalKeyStore,
   useMultiFileAuthState,
 } from '@whiskeysockets/baileys';
@@ -33,6 +33,59 @@ export interface WhatsAppChannelOpts {
   onMessage: OnInboundMessage;
   onChatMetadata: OnChatMetadata;
   registeredGroups: () => Record<string, RegisteredGroup>;
+}
+
+/**
+ * Fetch the latest WhatsApp Web version by parsing sw.js directly.
+ * Uses the provided HttpsProxyAgent so the request goes through the proxy,
+ * which is required in network environments where WhatsApp is blocked.
+ * This replaces Baileys' fetchLatestWaWebVersion() which uses Node's native
+ * fetch() — that API does not honour the `agent` option, so it bypasses
+ * the proxy and fails in restricted environments.
+ */
+async function fetchWaWebVersion(
+  agent: HttpsProxyAgent<string> | undefined,
+): Promise<{ version: [number, number, number] | undefined }> {
+  return new Promise((resolve, reject) => {
+    const options: https.RequestOptions = {
+      hostname: 'web.whatsapp.com',
+      path: '/sw.js',
+      method: 'GET',
+      headers: {
+        'user-agent':
+          'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+        'sec-fetch-site': 'none',
+      },
+      ...(agent ? { agent } : {}),
+    };
+
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', (chunk: Buffer) => (data += chunk.toString()));
+      res.on('end', () => {
+        if (res.statusCode !== 200) {
+          reject(new Error(`sw.js fetch failed: HTTP ${res.statusCode}`));
+          return;
+        }
+        // sw.js embeds the version as escaped JSON where the quotes are
+        // backslash-escaped: \"client_revision\":NNN  (chars: \ " ... \ " : N)
+        // In a regex literal \\\\\" means: match one literal backslash then a quote.
+        // Also try plain JSON form "client_revision":NNN as a fallback.
+        const match =
+          data.match(/\\"client_revision\\":\s*(\d+)/) ||
+          data.match(/"client_revision":\s*(\d+)/);
+        if (!match?.[1]) {
+          reject(new Error('client_revision not found in sw.js'));
+          return;
+        }
+        const revision = parseInt(match[1], 10);
+        resolve({ version: [2, 3000, revision] });
+      });
+    });
+
+    req.on('error', reject);
+    req.end();
+  });
 }
 
 export class WhatsAppChannel implements Channel {
@@ -74,9 +127,7 @@ export class WhatsAppChannel implements Channel {
       envFileVars.HTTP_PROXY;
     const agent = proxyUrl ? new HttpsProxyAgent(proxyUrl) : undefined;
 
-    const { version } = await fetchLatestWaWebVersion(
-      agent ? ({ agent } as any) : {},
-    ).catch((err) => {
+    const { version } = await fetchWaWebVersion(agent).catch((err: Error) => {
       logger.warn(
         { err },
         'Failed to fetch latest WA Web version, using default',
