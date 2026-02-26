@@ -202,9 +202,48 @@ function buildVolumeMounts(
 /**
  * Read allowed secrets from .env for passing to the container via stdin.
  * Secrets are never written to disk or mounted as files.
+ *
+ * If LITELLM_BASE_URL is set, all model traffic is routed through the LiteLLM
+ * proxy (which handles authentication internally). We point ANTHROPIC_BASE_URL
+ * at the proxy and use LITELLM_MASTER_KEY as the auth token — nanoclaw itself
+ * never touches provider credentials.
+ *
+ * If LITELLM_BASE_URL is not set, native Anthropic SDK routing is used:
+ * ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN / ANTHROPIC_BASE_URL are passed
+ * through as-is from .env.
  */
-function readSecrets(): Record<string, string> {
-  return readEnvFile(['CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_API_KEY']);
+async function readSecrets(): Promise<Record<string, string>> {
+  const envSecrets = readEnvFile([
+    'CLAUDE_CODE_OAUTH_TOKEN',
+    'ANTHROPIC_API_KEY',
+    'ANTHROPIC_AUTH_TOKEN',
+    'ANTHROPIC_BASE_URL',
+    'ANTHROPIC_MODEL',
+    'LITELLM_BASE_URL',
+    'LITELLM_MASTER_KEY',
+  ]);
+
+  if (envSecrets.LITELLM_BASE_URL) {
+    // LiteLLM proxy path: point the Anthropic SDK at the proxy.
+    // The proxy speaks the Anthropic API protocol on /v1/messages and handles
+    // all provider auth (Copilot, OpenAI, etc.) internally.
+    envSecrets.ANTHROPIC_BASE_URL = envSecrets.LITELLM_BASE_URL;
+    envSecrets.ANTHROPIC_AUTH_TOKEN =
+      envSecrets.LITELLM_MASTER_KEY ?? 'sk-nanoclaw-litellm';
+    // Strip internal-only variables — the container doesn't need them
+    delete envSecrets.LITELLM_BASE_URL;
+    delete envSecrets.LITELLM_MASTER_KEY;
+    // Remove ANTHROPIC_API_KEY so the SDK uses ANTHROPIC_AUTH_TOKEN instead
+    delete envSecrets.ANTHROPIC_API_KEY;
+  } else {
+    // Native Anthropic path: pass through credentials as-is from .env.
+    // ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN / ANTHROPIC_BASE_URL are used
+    // directly by the Anthropic SDK inside the container.
+    delete envSecrets.LITELLM_BASE_URL;
+    delete envSecrets.LITELLM_MASTER_KEY;
+  }
+
+  return envSecrets;
 }
 
 function buildContainerArgs(
@@ -278,6 +317,9 @@ export async function runContainerAgent(
     'Spawning container agent',
   );
 
+  // Fetch secrets before entering the Promise callback (readSecrets is async)
+  const secrets = await readSecrets();
+
   const logsDir = path.join(groupDir, 'logs');
   fs.mkdirSync(logsDir, { recursive: true });
 
@@ -294,7 +336,7 @@ export async function runContainerAgent(
     let stderrTruncated = false;
 
     // Pass secrets via stdin (never written to disk or mounted as files)
-    input.secrets = readSecrets();
+    input.secrets = secrets;
     container.stdin.write(JSON.stringify(input));
     container.stdin.end();
     // Remove secrets from input so they don't appear in logs
