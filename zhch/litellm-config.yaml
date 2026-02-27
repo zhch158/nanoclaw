@@ -1,0 +1,35 @@
+model_list:
+  # Claude models via GitHub Copilot
+  # Note: model names must use dot notation (claude-sonnet-4.5 not 4-5).
+  # The model_name alias (left side) is what clients send; litellm_params.model is what LiteLLM calls.
+  - model_name: claude-sonnet-4-6
+    litellm_params:
+      model: github_copilot/claude-sonnet-4.6
+  - model_name: claude-sonnet-4-5
+    litellm_params:
+      model: github_copilot/claude-sonnet-4.5
+  - model_name: claude-opus-4-5
+    litellm_params:
+      model: github_copilot/claude-opus-4.5
+  - model_name: claude-haiku-4-5
+    litellm_params:
+      model: github_copilot/claude-haiku-4.5
+
+  # OpenAI models via GitHub Copilot
+  - model_name: gpt-4o
+    litellm_params:
+      model: github_copilot/gpt-4o
+  - model_name: gpt-4o-mini
+    litellm_params:
+      model: github_copilot/gpt-4o-mini
+  - model_name: gpt-4.1
+    litellm_params:
+      model: github_copilot/gpt-4.1
+
+# Note: http_proxy / https_proxy are set via launchd environment variables in
+# ~/Library/LaunchAgents/com.litellm.plist — do NOT set them here.
+# LiteLLM has a bug where proxy settings in litellm_settings trigger false port
+# conflict detection, causing the server to bind on a random port instead of --port.
+
+general_settings:
+  master_key: sk-nanoclaw-litellm

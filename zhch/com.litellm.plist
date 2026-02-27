@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.litellm</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/miniconda3/envs/py313/bin/python3.13</string>
+        <string>/opt/miniconda3/envs/py313/bin/litellm</string>
+        <string>--config</string>
+        <string>/Users/zhch158/.config/litellm/config.yaml</string>
+        <string>--port</string>
+        <string>4000</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/Users/zhch158</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/miniconda3/envs/py313/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <key>HOME</key>
+        <string>/Users/zhch158</string>
+        <key>HTTP_PROXY</key>
+        <string>http://127.0.0.1:7890</string>
+        <key>HTTPS_PROXY</key>
+        <string>http://127.0.0.1:7890</string>
+        <key>http_proxy</key>
+        <string>http://127.0.0.1:7890</string>
+        <key>https_proxy</key>
+        <string>http://127.0.0.1:7890</string>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>/Users/zhch158/Library/Logs/litellm.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/zhch158/Library/Logs/litellm.error.log</string>
+</dict>
+</plist>
